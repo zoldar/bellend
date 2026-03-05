@@ -3,6 +3,8 @@ defmodule Bellend do
   Documentation for `Bellend`.
   """
 
+  import Nx.Defn
+
   def test_tokenizer_v1() do
     alias Bellend.TokenizerV1
 
@@ -120,6 +122,121 @@ defmodule Bellend do
 
     # INPUT EMBEDDINGS
     Nx.add(token_embeddings, pos_embeddings)
+  end
+
+  def test_self_attention0() do
+    inputs =
+      Nx.tensor([
+        # Your (x^1)
+        [0.43, 0.15, 0.89],
+        # journey (x^2)
+        [0.55, 0.87, 0.66],
+        # starts (x^3)
+        [0.57, 0.85, 0.64],
+        # with (x^4)
+        [0.22, 0.58, 0.33],
+        # one (x^5)
+        [0.77, 0.25, 0.10],
+        # step (x^6)
+        [0.05, 0.80, 0.55]
+      ])
+
+    query = inputs[1] |> IO.inspect(label: :QUERY)
+
+    {size, _} = inputs.shape
+
+    attn_scores_2 =
+      0..(size - 1)
+      |> Enum.map(&Nx.dot(inputs[&1], query))
+      |> Nx.stack()
+      |> IO.inspect(label: :ATTN_SCORES_2)
+
+    attn_wieghts_2_tmp = Nx.divide(attn_scores_2, Nx.sum(attn_scores_2))
+
+    IO.inspect(attn_wieghts_2_tmp, label: :ATTN_WEIGHTS_2_NAIVE)
+
+    attn_weights_2 = softmax(attn_scores_2)
+
+    IO.inspect(attn_weights_2, label: :ATTN_WEIGHTS_2)
+
+    context_vec_2 =
+      0..(size - 1)
+      |> Enum.map(&Nx.multiply(attn_weights_2[&1], inputs[&1]))
+      |> Nx.stack()
+      |> Nx.sum(axes: [0])
+
+    IO.inspect(context_vec_2, label: :CONTEXT_VEC_2)
+
+    :ok
+  end
+
+  def test_self_attention1() do
+    inputs =
+      Nx.tensor([
+        # Your (x^1)
+        [0.43, 0.15, 0.89],
+        # journey (x^2)
+        [0.55, 0.87, 0.66],
+        # starts (x^3)
+        [0.57, 0.85, 0.64],
+        # with (x^4)
+        [0.22, 0.58, 0.33],
+        # one (x^5)
+        [0.77, 0.25, 0.10],
+        # step (x^6)
+        [0.05, 0.80, 0.55]
+      ])
+
+    attn_scores = Nx.dot(inputs, Nx.transpose(inputs))
+
+    IO.inspect(attn_scores, label: :ATTENTION_SCORES)
+
+    attn_weights = Nx.transpose(softmax(attn_scores, axes: [0]))
+
+    IO.inspect(attn_weights, label: :ATTENTION_WEIGHTS)
+
+    context_vecs = Nx.dot(attn_weights, inputs)
+
+    IO.inspect(context_vecs, label: :CONTEXT_VECS)
+
+    :ok
+  end
+
+  def test_self_attention_with_weights0() do
+    inputs =
+      Nx.tensor([
+        # Your (x^1)
+        [0.43, 0.15, 0.89],
+        # journey (x^2)
+        [0.55, 0.87, 0.66],
+        # starts (x^3)
+        [0.57, 0.85, 0.64],
+        # with (x^4)
+        [0.22, 0.58, 0.33],
+        # one (x^5)
+        [0.77, 0.25, 0.10],
+        # step (x^6)
+        [0.05, 0.80, 0.55]
+      ])
+
+    key = Nx.Random.key(123)
+    x_2 = inputs[1]
+    {_, d_in} = inputs.shape
+    d_out = 2
+
+    {w_query, key} = Nx.Random.uniform(key, shape: {d_in, d_out})
+    {w_key, key} = Nx.Random.uniform(key, shape: {d_in, d_out})
+    {w_value, _key} = Nx.Random.uniform(key, shape: {d_in, d_out})
+
+    query_2 = Nx.dot(x_2, w_query)
+
+    IO.inspect(query_2, label: :query_2)
+
+    :ok
+  end
+
+  defn softmax(t, opts \\ []) do
+    Nx.exp(t) / Nx.sum(Nx.exp(t), opts)
   end
 
   defp embedding(input, vocab_size, output_dim) do
